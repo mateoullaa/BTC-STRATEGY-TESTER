@@ -7,9 +7,11 @@ in-app and exportable to PDF.
 
 ## Status
 
-Scaffolding stage. The harness (roles, tests, contracts) is in place; the
-`tools/` implementations and the Streamlit UI are not built yet. See
-[memory.md](memory.md) for the running log of lessons as the build progresses.
+Functional v1. All `tools/` implementations and the Streamlit UI are built and
+verified end-to-end (both test levels pass, `python init.py` is green). Known
+limitation: leverage is modeled as a linear P&L multiplier with no margin-call/
+liquidation simulation. See [memory.md](memory.md) for the running log of
+lessons from the build.
 
 ## How it works
 
@@ -61,9 +63,10 @@ Two levels, both required:
 - `tests/test_metrics.py` — synthetic trades with exactly known expected
   metrics (win rate, profit factor, expectancy, drawdown), so the calculation
   engine is verified, not just "doesn't crash".
-- `tests/test_smoke.py` — end-to-end run on the example strategy against real
-  data: confirms the full pipeline produces a report with no errors/NaNs and
-  exports a PDF.
+- `tests/test_smoke.py` — end-to-end run on the example strategy against a
+  bundled historical data fixture (`tests/fixtures/btcusdt_1h_sample.csv`, kept
+  offline/deterministic instead of hitting Binance live): confirms the full
+  pipeline produces a report with no errors/NaNs and exports a PDF.
 
 Run `python init.py` before making any change — it checks the project
 structure and runs this test suite.

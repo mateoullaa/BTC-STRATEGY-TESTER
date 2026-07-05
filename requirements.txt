@@ -5,3 +5,5 @@ requests
 plotly
 fpdf2
 pytest
+pyarrow
+matplotlib
