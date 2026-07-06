@@ -36,6 +36,31 @@ METRIC_LABELS = {
     "cagr": "CAGR",
 }
 
+METRIC_DESCRIPTIONS = {
+    "expectancy": "Average profit or loss per trade, in dollars. Positive means "
+                  "the strategy has a mathematical edge per trade on average.",
+    "win_rate": "Percentage of trades that closed with a profit.",
+    "profit_factor": "Gross profit divided by gross loss. Above 1.0 means total "
+                      "wins outweigh total losses.",
+    "total_return_pct": "Total percentage gain or loss of the account over the "
+                         "backtested period.",
+    "total_return_abs": "Total gain or loss in dollars over the backtested period.",
+    "max_drawdown_pct": "The largest peak-to-trough decline in account equity, "
+                         "as a percentage.",
+    "max_drawdown_duration": "How many days the account took to recover from its "
+                              "worst drawdown to a new equity high.",
+    "sharpe_ratio": "Risk-adjusted return: average return divided by its "
+                    "volatility (annualized). Higher is better; assumes a 0% "
+                    "risk-free rate.",
+    "sortino_ratio": "Like Sharpe, but only penalizes downside volatility "
+                      "(ignores upside swings). Higher is better.",
+    "num_trades": "Total number of completed trades in the backtest.",
+    "avg_win": "Average dollar profit of winning trades only.",
+    "avg_loss": "Average dollar loss of losing trades only.",
+    "cagr": "Compound Annual Growth Rate — the yearly rate of return needed to "
+            "go from the starting to the ending equity.",
+}
+
 METRIC_FORMATTERS = {
     "expectancy": lambda v: f"${v:,.2f}",
     "win_rate": lambda v: f"{v:.2%}",
@@ -53,7 +78,7 @@ METRIC_FORMATTERS = {
 }
 
 
-def _format_metric(key: str, value) -> str:
+def format_metric_value(key: str, value) -> str:
     formatter = METRIC_FORMATTERS.get(key)
     if formatter is None:
         return str(value)
@@ -93,7 +118,7 @@ def generate_pdf_report(metrics: dict, equity_curve: pd.Series, output_path: str
         label = METRIC_LABELS.get(key, key.replace("_", " ").title())
         pdf.cell(label_width, row_height, label, border=1)
         pdf.cell(
-            value_width, row_height, _format_metric(key, value), border=1,
+            value_width, row_height, format_metric_value(key, value), border=1,
             new_x=XPos.LMARGIN, new_y=YPos.NEXT,
         )
 

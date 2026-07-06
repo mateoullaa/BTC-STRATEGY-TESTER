@@ -15,7 +15,12 @@ import streamlit as st
 from tools.backtest_engine import run_backtest
 from tools.data_fetcher import fetch_ohlcv
 from tools.metrics import compute_metrics
-from tools.report_generator import generate_pdf_report
+from tools.report_generator import (
+    METRIC_DESCRIPTIONS,
+    METRIC_LABELS,
+    format_metric_value,
+    generate_pdf_report,
+)
 from tools.strategy_loader import load_strategy, validate_signals
 
 SYMBOL = "BTCUSDT"
@@ -26,8 +31,17 @@ def _load_strategy_code() -> str | None:
     source_mode = st.sidebar.radio("Strategy source", ["Upload .py file", "Paste code"])
     if source_mode == "Upload .py file":
         uploaded = st.sidebar.file_uploader("Strategy file", type=["py"])
-        return uploaded.getvalue().decode("utf-8") if uploaded is not None else None
-    return st.sidebar.text_area("Strategy code", height=300) or None
+        code = uploaded.getvalue().decode("utf-8") if uploaded is not None else None
+    else:
+        pasted = st.sidebar.text_area(
+            "Strategy code", height=300, key="strategy_paste_area",
+            help="After pasting, click outside this box (or press Ctrl+Enter) before clicking Run backtest.",
+        )
+        code = pasted.strip() or None
+
+    if code:
+        st.sidebar.caption(f"Strategy loaded: {len(code.splitlines())} lines.")
+    return code
 
 
 def _sidebar_config() -> dict:
@@ -42,9 +56,15 @@ def _sidebar_config() -> dict:
         "is simulated. Results may be optimistic at high leverage against the position."
     )
     date_range = st.sidebar.date_input(
-        "Date range", value=(date.today() - timedelta(days=365), date.today())
+        "Date range", value=(date.today() - timedelta(days=30), date.today())
     )
     timeframe = st.sidebar.selectbox("Timeframe", TIMEFRAMES, index=TIMEFRAMES.index("1h"))
+    st.sidebar.caption(
+        "Wide date ranges on small timeframes (1m/5m) mean many pages of history to "
+        "download from Binance the first time — this can take a couple of minutes with "
+        "no visible progress beyond the small 'RUNNING' indicator. Subsequent runs over "
+        "the same range are cached and much faster."
+    )
     return {
         "initial_capital": initial_capital,
         "commission_pct": commission_pct,
@@ -79,22 +99,33 @@ def _run_backtest(code: str, config: dict) -> None:
     st.session_state["metrics"] = metrics
 
 
+def _metric_card(container, key: str, value) -> None:
+    container.metric(
+        METRIC_LABELS.get(key, key.replace("_", " ").title()),
+        format_metric_value(key, value),
+        help=METRIC_DESCRIPTIONS.get(key),
+    )
+
+
 def _render_report(config: dict) -> None:
     metrics = st.session_state["metrics"]
     result = st.session_state["result"]
     ohlcv = st.session_state["ohlcv"]
 
+    st.subheader("Key metrics")
+    headline_keys = [
+        "total_return_pct", "sharpe_ratio", "max_drawdown_pct",
+        "win_rate", "profit_factor", "cagr",
+    ]
     cols = st.columns(3)
-    cols[0].metric("Total Return", f"{metrics['total_return_pct']:.2%}")
-    cols[1].metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-    cols[2].metric("Max Drawdown", f"{metrics['max_drawdown_pct']:.2f}%")
-    cols = st.columns(3)
-    cols[0].metric("Win Rate", f"{metrics['win_rate']:.2%}")
-    cols[1].metric("Profit Factor", f"{metrics['profit_factor']:.2f}")
-    cols[2].metric("CAGR", f"{metrics['cagr']:.2%}")
+    for i, key in enumerate(headline_keys):
+        _metric_card(cols[i % 3], key, metrics[key])
 
     st.subheader("All metrics")
-    st.dataframe(metrics, width="stretch")
+    all_keys = list(metrics.keys())
+    cols = st.columns(4)
+    for i, key in enumerate(all_keys):
+        _metric_card(cols[i % 4], key, metrics[key])
 
     st.subheader("Equity curve vs. BTC/USDT price")
     price_norm = ohlcv["close"] / ohlcv["close"].iloc[0] * config["initial_capital"]
@@ -104,7 +135,23 @@ def _render_report(config: dict) -> None:
     st.plotly_chart(fig, width="stretch")
 
     st.subheader("Trades")
-    st.dataframe(result.trades, width="stretch")
+    trades_display = result.trades.copy()
+    if "pnl_pct" in trades_display:
+        trades_display["pnl_pct"] = trades_display["pnl_pct"] * 100
+    st.dataframe(
+        trades_display,
+        width="stretch",
+        column_config={
+            "entry_time": st.column_config.DatetimeColumn("Entry Time"),
+            "exit_time": st.column_config.DatetimeColumn("Exit Time"),
+            "direction": st.column_config.TextColumn("Direction"),
+            "entry_price": st.column_config.NumberColumn("Entry Price", format="$%.2f"),
+            "exit_price": st.column_config.NumberColumn("Exit Price", format="$%.2f"),
+            "bars_held": st.column_config.NumberColumn("Bars Held"),
+            "pnl_abs": st.column_config.NumberColumn("P&L ($)", format="$%.2f"),
+            "pnl_pct": st.column_config.NumberColumn("P&L (%)", format="%.2f%%"),
+        },
+    )
 
     if st.button("Export report to PDF"):
         pdf_path = Path(tempfile.gettempdir()) / "backtest_report.pdf"
@@ -128,7 +175,8 @@ def main() -> None:
             st.error("Upload or paste a strategy first.")
         else:
             try:
-                _run_backtest(code, config)
+                with st.spinner("Fetching data and running backtest — first-time fetches over wide ranges can take a while..."):
+                    _run_backtest(code, config)
             except Exception as e:
                 st.error(str(e))
 
