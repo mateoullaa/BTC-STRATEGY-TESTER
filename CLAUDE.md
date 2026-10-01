@@ -49,7 +49,7 @@ subagents — see [roles/planner.md](roles/planner.md) for why.
 ## Language rule
 
 All artifacts (code, docs, commits, comments) are in **English**. Conversation
-with the user is in **Spanish**.
+with the user is in **English** too (Mateo's global rule since 2026-10-01).
 
 ## Skills / MCP
 
